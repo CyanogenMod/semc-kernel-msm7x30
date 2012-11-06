@@ -42,9 +42,6 @@ static DEFINE_MUTEX(msm_cpufreq_voter_lock);
 static int msm_cpufreq_vote = MSM_CPUFREQ_IDLE;
 static LIST_HEAD(msm_cpufreq_voters);
 
-#define dprintk(msg...) \
-		cpufreq_debug_printk(CPUFREQ_DEBUG_DRIVER, "cpufreq-msm", msg)
-
 static int msm_cpufreq_check_votes(void)
 {
 	struct msm_cpufreq_voter *voter;
@@ -137,7 +134,7 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 	}
 
 #ifdef CONFIG_CPU_FREQ_DEBUG
-	dprintk("CPU[%d] target %d relation %d (%d-%d) selected %d\n",
+	pr_debug("CPU[%d] target %d relation %d (%d-%d) selected %d\n",
 		policy->cpu, target_freq, relation,
 		policy->min, policy->max, table[index].frequency);
 #endif

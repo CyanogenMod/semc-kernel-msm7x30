@@ -4495,6 +4495,14 @@ static void __init pmem_adsp_size_setup(char **p)
 
 __early_param("pmem_adsp_size=", pmem_adsp_size_setup);
 
+static unsigned pmem_camera_size = MSM_PMEM_CAMERA_SIZE;
+static void __init pmem_camera_size_setup(char **p)
+{
+	pmem_camera_size = memparse(*p, p);
+}
+
+__early_param("pmem_camera_size=", pmem_camera_size_setup);
+
 static unsigned pmem_kernel_ebi1_size = PMEM_KERNEL_EBI1_SIZE;
 static void __init pmem_kernel_ebi1_size_setup(char **p)
 {

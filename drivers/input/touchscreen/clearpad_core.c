@@ -1,6 +1,7 @@
 /* linux/drivers/input/touchscreen/clearpad_core.c
  *
  * Copyright (C) 2010 Sony Ericsson Mobile Communications AB.
+ * Copyright (C) 2012 Sony Mobile Communications AB.
  *
  * Author: Courtney Cavin <courtney.cavin@sonyericsson.com>
  *         Yusuke Yoshimura <Yusuke.Yoshimura@sonyericsson.com>
@@ -76,6 +77,7 @@ do {								\
 do {					\
 	LOG_CHECK(this, "(will lock)\n");	\
 	mutex_lock(&this->lock);	\
+	LOG_CHECK(this, "LOCKED\n");	\
 } while (0)
 #define UNLOCK(this)			\
 do {					\
@@ -290,6 +292,8 @@ struct synaptics_clearpad {
 	wait_queue_head_t task_none_wq;
 	bool flash_requested;
 };
+
+static void synaptics_funcarea_initialize(struct synaptics_clearpad *this);
 
 static char *make_string(u8 *array, size_t size)
 {
@@ -835,6 +839,10 @@ static int synaptics_flash_verify(struct synaptics_clearpad *this)
 
 	rc = synaptics_clearpad_initialize(this);
 	LOG_CHECK(this, "rc=%d\n", rc);
+	if (rc)
+		return rc;
+	this->state = SYN_STATE_RUNNING;
+	synaptics_funcarea_initialize(this);
 	return rc;
 }
 
@@ -1599,7 +1607,7 @@ static int synaptics_clearpad_command_fw_flash(struct synaptics_clearpad *this)
 	rc = synaptics_clearpad_initialize(this);
 	LOG_CHECK(this, "rc=%d\n", rc);
 	UNLOCK(this);
-
+	if (rc)
 		goto error;
 
 	/* wait for end of flash */
@@ -1672,7 +1680,7 @@ static ssize_t synaptics_clearpad_state_show(struct device *dev,
 {
 	struct synaptics_clearpad *this = dev_get_drvdata(dev);
 
-	if (!strcmp(attr->attr.name, __stringify(fwinfo)))
+	if (!strncmp(attr->attr.name, __stringify(fwinfo), PAGE_SIZE))
 		snprintf(buf, PAGE_SIZE,
 			"%s, family 0x%02x, fw rev 0x%02x, task=%s, state=%s\n",
 			make_string(this->device_info.product_id,
@@ -1680,21 +1688,21 @@ static ssize_t synaptics_clearpad_state_show(struct device *dev,
 			this->device_info.customer_family,
 			this->device_info.firmware_revision,
 			task_name[this->task], state_name[this->state]);
-	else if (!strcmp(attr->attr.name, __stringify(fwfamily)))
+	else if (!strncmp(attr->attr.name, __stringify(fwfamily), PAGE_SIZE))
 		snprintf(buf, PAGE_SIZE,
 			"%x", this->device_info.customer_family);
-	else if (!strcmp(attr->attr.name, __stringify(fwrevision)))
+	else if (!strncmp(attr->attr.name, __stringify(fwrevision), PAGE_SIZE))
 		snprintf(buf, PAGE_SIZE,
 			"%x", this->device_info.firmware_revision);
-	else if (!strcmp(attr->attr.name, __stringify(fwtask)))
+	else if (!strncmp(attr->attr.name, __stringify(fwtask), PAGE_SIZE))
 		snprintf(buf, PAGE_SIZE,
 			"%s", task_name[this->task]);
-	else if (!strcmp(attr->attr.name, __stringify(fwstate)))
+	else if (!strncmp(attr->attr.name, __stringify(fwstate), PAGE_SIZE))
 		snprintf(buf, PAGE_SIZE,
 			"%s", state_name[this->state]);
 	else
 		snprintf(buf, PAGE_SIZE, "illegal sysfs file");
-	return strlen(buf);
+	return strnlen(buf, PAGE_SIZE);
 }
 
 static ssize_t synaptics_clearpad_fwflush_store(struct device *dev,
