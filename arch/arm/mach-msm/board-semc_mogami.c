@@ -4533,6 +4533,15 @@ static void __init msm7x30_allocate_memory_regions(void)
 			"pmem arena\n", size, addr, __pa(addr));
 	}
 
+	size = pmem_camera_size;
+	if (size) {
+		addr = alloc_bootmem(size);
+		android_pmem_camera_pdata.start = __pa(addr);
+		android_pmem_camera_pdata.size = size;
+		pr_info("allocating %lu bytes at %p (%lx physical) for camera "
+			"pmem arena\n", size, addr, __pa(addr));
+	}
+
 	size = pmem_kernel_ebi1_size;
 	if (size) {
 		addr = alloc_bootmem_aligned(size, 0x100000);
