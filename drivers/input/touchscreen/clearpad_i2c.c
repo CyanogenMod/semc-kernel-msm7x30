@@ -1,9 +1,6 @@
 /* linux/drivers/input/touchscreen/clearpad_i2c.c
  *
  * Copyright (C) 2011 Sony Ericsson Mobile Communications AB.
- * Copyright (c) 2011 Synaptics Incorporated
- * Copyright (c) 2011 Unixphere
- * Copyright (C) 2012 Sony Mobile Communications AB.
  *
  * Author: Yusuke Yoshimura <Yusuke.Yoshimura@sonyericsson.com>
  *
@@ -15,22 +12,12 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
-#include <linux/slab.h>
 #include <linux/input.h>
 #include <linux/clearpad.h>
 
-#define CLEARPAD_PAGE_SELECT_REGISTER 0xff
-#define CLEARPAD_PAGE(addr) (((addr) >> 8) & 0xff)
-
-struct clearpad_i2c {
-	struct platform_device *pdev;
-	unsigned int page;
-	struct mutex page_mutex;
-};
-
 static int clearpad_i2c_read(struct device *dev, u8 reg, u8 *buf, u8 len)
 {
-	s32 rc = 0;
+	s32 rc;
 	int rsize = I2C_SMBUS_BLOCK_MAX;
 	int off;
 
@@ -39,7 +26,7 @@ static int clearpad_i2c_read(struct device *dev, u8 reg, u8 *buf, u8 len)
 			rsize = len - off;
 		rc = i2c_smbus_read_i2c_block_data(to_i2c_client(dev),
 				reg + off, rsize, &buf[off]);
-		if (rc != rsize) {
+		if (rc < 0) {
 			dev_err(dev, "%s: rc = %d\n", __func__, rc);
 			return rc;
 		}
@@ -49,7 +36,7 @@ static int clearpad_i2c_read(struct device *dev, u8 reg, u8 *buf, u8 len)
 
 static int clearpad_i2c_write(struct device *dev, u8 reg, const u8 *buf, u8 len)
 {
-	int rc = 0;
+	int rc;
 	u8 i;
 	for (i = 0; i < len; i++) {
 		rc = i2c_smbus_write_byte_data(to_i2c_client(dev),
@@ -102,15 +89,6 @@ err_device_put:
 	return rc;
 }
 
-static int __devexit clearpad_i2c_remove(struct i2c_client *client)
-{
-	struct clearpad_i2c *this = dev_get_drvdata(&client->dev);
-	platform_device_unregister(this->pdev);
-	dev_set_drvdata(&client->dev, NULL);
-	kfree(this);
-	return 0;
-}
-
 static const struct i2c_device_id clearpad_id[] = {
 	{ CLEARPADI2C_NAME, 0 },
 	{ }
@@ -124,7 +102,6 @@ static struct i2c_driver clearpad_i2c_driver = {
 	},
 	.id_table	= clearpad_id,
 	.probe		= clearpad_i2c_probe,
-	.remove		= __devexit_p(clearpad_i2c_remove),
 };
 
 static int __init clearpad_i2c_init(void)

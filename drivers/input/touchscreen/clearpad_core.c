@@ -1,7 +1,6 @@
 /* linux/drivers/input/touchscreen/clearpad_core.c
  *
  * Copyright (C) 2010 Sony Ericsson Mobile Communications AB.
- * Copyright (C) 2012 Sony Mobile Communications AB.
  *
  * Author: Courtney Cavin <courtney.cavin@sonyericsson.com>
  *         Yusuke Yoshimura <Yusuke.Yoshimura@sonyericsson.com>
@@ -32,15 +31,13 @@
 
 #define SYNAPTICS_CLEARPAD_VENDOR		0x1
 #define SYNAPTICS_MAX_N_FINGERS			10
-#define SYNAPTICS_FINGER_DATA_SIZE		5
 #define SYNAPTICS_DEVICE_STATUS			0x13
 #define SYNAPTICS_MAX_Z_VALUE			255
 #define SYNAPTICS_MAX_W_VALUE			15
 #define SYNAPTICS_PDT_START			0xEF
 #define SYNAPTICS_STRING_LENGTH			128
 #define SYNAPTICS_RETRY_NUM_OF_INITIAL_CHECK	2
-#define SYNAPTICS_FINGER_OFF(n, x) \
-	((((n) / 4) + !!(n % 4)) + SYNAPTICS_FINGER_DATA_SIZE * (x))
+#define SYNAPTICS_FINGER_OFF(n, x) ((((n) / 4) + !!(n % 4)) + 5 * (x))
 #define SYNAPTICS_REG_MAX \
 	SYNAPTICS_FINGER_OFF(SYNAPTICS_MAX_N_FINGERS, SYNAPTICS_MAX_N_FINGERS)
 #define HWTEST_SIZE_OF_COMMAND_PREFIX		2
@@ -75,14 +72,13 @@ do {								\
 
 #define LOCK(this)			\
 do {					\
-	LOG_CHECK(this, "(will lock)\n");	\
+	LOG_VERBOSE(this, "LOCK\n");	\
 	mutex_lock(&this->lock);	\
-	LOG_CHECK(this, "LOCKED\n");	\
 } while (0)
 #define UNLOCK(this)			\
 do {					\
-	LOG_CHECK(this, "UNLOCK\n");	\
 	mutex_unlock(&this->lock);	\
+	LOG_VERBOSE(this, "UNLOCK\n");	\
 } while (0)
 
 enum synaptics_state {
@@ -293,8 +289,6 @@ struct synaptics_clearpad {
 	bool flash_requested;
 };
 
-static void synaptics_funcarea_initialize(struct synaptics_clearpad *this);
-
 static char *make_string(u8 *array, size_t size)
 {
 	static char string[SYNAPTICS_STRING_LENGTH + 1];
@@ -361,7 +355,7 @@ static void synaptics_clearpad_set_irq(struct synaptics_clearpad *this,
 		enable_irq(this->pdata->irq);
 	} else if (!mask && this->irq_mask) {
 		LOG_STAT(this, "disable IRQ (user_mask 0x%02x)\n", mask);
-		disable_irq_nosync(this->pdata->irq);
+		disable_irq(this->pdata->irq);
 	} else
 		LOG_STAT(this, "no change IRQ (%s)\n",
 				mask ? "enable" : "disable");
@@ -394,13 +388,13 @@ static int synaptics_clearpad_read_pdt(struct synaptics_clearpad *this)
 		rc = regs_read(this, addr--, &fdes.base[SYN_TYPE_QUERY], 1);
 		if (rc)
 			return rc;
-		LOG_CHECK(this, "F%02x_DATA = %02x\n",
+		LOG_VERBOSE(this, "F%02x_DATA = %02x\n",
 			    fdes.number, fdes.base[SYN_TYPE_DATA]);
-		LOG_CHECK(this, "F%02x_CTRL = %02x\n",
+		LOG_VERBOSE(this, "F%02x_CTRL = %02x\n",
 			    fdes.number, fdes.base[SYN_TYPE_CTRL]);
-		LOG_CHECK(this, "F%02x_COMMAND = %02x\n",
+		LOG_VERBOSE(this, "F%02x_COMMAND = %02x\n",
 			    fdes.number, fdes.base[SYN_TYPE_COMMAND]);
-		LOG_CHECK(this, "F%02x_QUERY = %02x\n",
+		LOG_VERBOSE(this, "F%02x_QUERY = %02x\n",
 			    fdes.number, fdes.base[SYN_TYPE_QUERY]);
 		switch (fdes.number) {
 		case SYN_F01_RMI_VALUE:
@@ -561,9 +555,6 @@ static int synaptics_flash_enable(struct synaptics_clearpad *this)
 	int rc;
 	u8 buf[2];
 
-	if (!this->fwdata_available)
-		return -EINVAL;
-
 	/* read bootloader id */
 	rc = synaptics_read(this, SYNF(F34_FLASH, QUERY, 0x00),
 			buf, sizeof(buf));
@@ -578,7 +569,7 @@ static int synaptics_flash_enable(struct synaptics_clearpad *this)
 	if (rc)
 		return rc;
 
-	usleep(10000);
+	msleep(10);
 
 	/* issue a flash program enable */
 	rc = synaptics_put(this, SYNF(F34_FLASH, DATA, 0x12),
@@ -590,7 +581,9 @@ static int synaptics_flash_enable(struct synaptics_clearpad *this)
 	this->state = SYN_STATE_FLASH_ENABLE;
 	msleep(100);
 
+	LOCK(this);
 	synaptics_clearpad_set_irq(this, IRQ_FLASH_ENABLE, true);
+	UNLOCK(this);
 
 	return rc;
 }
@@ -599,9 +592,6 @@ static int synaptics_flash_program(struct synaptics_clearpad *this)
 {
 	int rc;
 	u8 buf[2];
-
-	if (!this->fwdata_available)
-		return -EINVAL;
 
 	/* make sure that we are in programming mode and there are no issues */
 	rc = synaptics_read(this, SYNF(F34_FLASH, DATA, 0x12), buf, 1);
@@ -631,7 +621,7 @@ static int synaptics_flash_program(struct synaptics_clearpad *this)
 	if (rc)
 		return rc;
 
-	usleep(10000);
+	msleep(10);
 
 	/* issue a firmware and configuration erase */
 	rc = synaptics_put(this, SYNF(F34_FLASH, DATA, 0x12),
@@ -640,6 +630,7 @@ static int synaptics_flash_program(struct synaptics_clearpad *this)
 		return rc;
 
 	dev_info(&this->pdev->dev, "firmware erasing\n");
+	dev_info(&this->pdev->dev, "flashing data\n");
 
 	this->state = SYN_STATE_FLASH_PROGRAM;
 	return rc;
@@ -652,12 +643,6 @@ static int synaptics_flash_data(struct synaptics_clearpad *this)
 	u8 buf;
 	const u8 *data;
 	struct synaptics_flash_image *f = &this->flash;
-
-	if (!this->fwdata_available)
-		return -EINVAL;
-
-	if (f->data.pos > 0)
-		goto write_block_data;
 
 	/* make sure that we are in programming mode and there are no issues */
 	rc = synaptics_read(this, SYNF(F34_FLASH, DATA, 0x12), &buf, 1);
@@ -682,7 +667,6 @@ static int synaptics_flash_data(struct synaptics_clearpad *this)
 	if (rc)
 		return rc;
 
-write_block_data:
 	data = f->data.data + f->data.pos * 16;
 	len = f->data.length - f->data.pos * 16;
 	if (len > 16)
@@ -692,6 +676,8 @@ write_block_data:
 	rc = synaptics_write(this, SYNF(F34_FLASH, DATA, 0x02), data, len);
 	if (rc)
 		return rc;
+
+	msleep(10);
 
 	/* issue a write data block command */
 	rc = synaptics_put(this, SYNF(F34_FLASH, DATA, 0x12),
@@ -720,12 +706,6 @@ static int synaptics_flash_config(struct synaptics_clearpad *this)
 	const u8 *data;
 	struct synaptics_flash_image *f = &this->flash;
 
-	if (!this->fwdata_available)
-		return -EINVAL;
-
-	if (f->config.pos > 0)
-		goto write_block_data;
-
 	/* make sure that we are in programming mode and there are no issues */
 	rc = synaptics_read(this, SYNF(F34_FLASH, DATA, 0x12), &buf, 1);
 	if (rc)
@@ -749,7 +729,6 @@ static int synaptics_flash_config(struct synaptics_clearpad *this)
 	if (rc)
 		return rc;
 
-write_block_data:
 	data = f->config.data + f->config.pos * 16;
 	len = f->config.length - f->config.pos * 16;
 	if (len > 16)
@@ -759,6 +738,8 @@ write_block_data:
 	rc = synaptics_write(this, SYNF(F34_FLASH, DATA, 0x02), data, len);
 	if (rc)
 		return rc;
+
+	msleep(10);
 
 	/* issue a write configuration block command */
 	rc = synaptics_put(this, SYNF(F34_FLASH, DATA, 0x12),
@@ -782,9 +763,6 @@ static int synaptics_flash_disable(struct synaptics_clearpad *this)
 	int rc;
 	u8 buf;
 
-	if (!this->fwdata_available)
-		return -EINVAL;
-
 	/* make sure that we are in programming mode and there are no issues */
 	rc = synaptics_read(this, SYNF(F34_FLASH, DATA, 0x12), &buf, 1);
 	if (rc)
@@ -796,7 +774,7 @@ static int synaptics_flash_disable(struct synaptics_clearpad *this)
 		return -EIO;
 	}
 
-	usleep(10000);
+	msleep(10);
 
 	/* send a reset to the device to complete the flash procedure */
 	rc = synaptics_put(this, SYNF(F01_RMI, COMMAND, 0x00),
@@ -839,10 +817,6 @@ static int synaptics_flash_verify(struct synaptics_clearpad *this)
 
 	rc = synaptics_clearpad_initialize(this);
 	LOG_CHECK(this, "rc=%d\n", rc);
-	if (rc)
-		return rc;
-	this->state = SYN_STATE_RUNNING;
-	synaptics_funcarea_initialize(this);
 	return rc;
 }
 
@@ -895,7 +869,6 @@ static int synaptics_clearpad_flash(struct synaptics_clearpad *this)
 		break;
 	case SYN_STATE_FLASH_DATA:
 		rc = synaptics_flash_config(this);
-		LOG_CHECK(this, "rc=%d\n", rc);
 		break;
 	case SYN_STATE_FLASH_CONFIG:
 		rc = synaptics_flash_disable(this);
@@ -906,14 +879,14 @@ static int synaptics_clearpad_flash(struct synaptics_clearpad *this)
 		rc = synaptics_flash_verify(this);
 		LOG_CHECK(this, "rc=%d\n", rc);
 		break;
-	default:
+	case SYN_STATE_DISABLED:
 		LOG_CHECK(this, "rc=%d\n", rc);
 		break;
 	}
 
 	if (rc) {
 		dev_err(&this->pdev->dev,
-			"failed during flash (%s)\n", state_name[this->state]);
+				"failed during flash\n");
 		this->state = SYN_STATE_DISABLED;
 		synaptics_clearpad_set_irq(this, IRQ_FLASH_ENABLE, false);
 
@@ -981,7 +954,7 @@ static int synaptics_clearpad_set_power(struct synaptics_clearpad *this)
 			goto err_unlock;
 		}
 
-		usleep(10000);
+		msleep(10);
 		this->active |= SYN_ACTIVE_POWER;
 
 	} else if (!should_wake && (active & SYN_ACTIVE_POWER)) {
@@ -995,7 +968,7 @@ static int synaptics_clearpad_set_power(struct synaptics_clearpad *this)
 			       "failed to enter sleep mode\n");
 			goto err_unlock;
 		}
-		usleep(10000); /* wait for last irq */
+		msleep(10); /* wait for last irq */
 		LOG_CHECK(this, "enter sleep mode\n");
 		synaptics_clearpad_set_irq(this, IRQ_SET_POWER, false);
 
@@ -1415,8 +1388,6 @@ static int synaptics_clearpad_device_open(struct input_dev *dev)
 
 	LOG_STAT(this, "state=%s\n", state_name[this->state]);
 
-	if (this->state == SYN_STATE_INIT)
-		return 0;
 	if (this->state == SYN_STATE_DISABLED)
 		return -ENODEV;
 	if (this->state != SYN_STATE_RUNNING)
@@ -1543,8 +1514,6 @@ static int synaptics_clearpad_command_fw_load_start(
 					struct synaptics_clearpad *this)
 {
 	int rc;
-
-	LOCK(this);
 	if (this->flash.image == NULL) {
 		synaptics_firmware_reset(this);
 		rc = sysfs_create_bin_file(&this->input->dev.kobj,
@@ -1555,12 +1524,10 @@ static int synaptics_clearpad_command_fw_load_start(
 		}
 	} else {
 		dev_err(&this->pdev->dev,
-				"flash.image already exists\n");
+				"flash.image allready exists\n");
 		synaptics_firmware_reset(this);
 		rc = -EINVAL;
 	}
-	UNLOCK(this);
-
 	return rc;
 }
 
@@ -1569,15 +1536,12 @@ static int synaptics_clearpad_command_fw_flash(struct synaptics_clearpad *this)
 	enum   synaptics_state state;
 	int rc;
 
-	LOCK(this);
 	if (!this->fwdata_available) {
 		dev_err(&this->pdev->dev,
 				"fwdata_available is not ready yet\n");
 		rc = -EINVAL;
-		UNLOCK(this);
 		goto error;
 	}
-	UNLOCK(this);
 	if (wait_event_interruptible(this->task_none_wq,
 			synaptics_clearpad_check_task(this, &state, true))) {
 		rc = -ERESTARTSYS;
@@ -1596,6 +1560,7 @@ static int synaptics_clearpad_command_fw_flash(struct synaptics_clearpad *this)
 		LOG_STAT(this, "active: %x (task: %s)\n",
 			 this->active, task_name[this->task]);
 	}
+
 	UNLOCK(this);
 
 	/* wake up */
@@ -1603,10 +1568,7 @@ static int synaptics_clearpad_command_fw_flash(struct synaptics_clearpad *this)
 	if (rc)
 		goto error;
 
-	LOCK(this);
 	rc = synaptics_clearpad_initialize(this);
-	LOG_CHECK(this, "rc=%d\n", rc);
-	UNLOCK(this);
 	if (rc)
 		goto error;
 
@@ -1617,7 +1579,6 @@ static int synaptics_clearpad_command_fw_flash(struct synaptics_clearpad *this)
 		goto error;
 	}
 
-	LOCK(this);
 	/* check if standby was reserved */
 	if (this->active & SYN_STANDBY_AFTER_FLASH) {
 		this->active &= ~SYN_STANDBY_AFTER_FLASH;
@@ -1635,7 +1596,7 @@ static int synaptics_clearpad_command_fw_flash(struct synaptics_clearpad *this)
 
 error:
 	snprintf(this->result_info, SYNAPTICS_STRING_LENGTH,
-		"%s, family 0x%02x, fw rev 0x%02x, failed fw update\n",
+		"%s, family %d, fw rev %d, failed fw update\n",
 		make_string(this->device_info.product_id,
 					HEADER_PRODUCT_ID_SIZE),
 		 this->device_info.customer_family,
@@ -1643,7 +1604,7 @@ error:
 	LOCK(this);
 	this->flash_requested = false;
 	synaptics_firmware_reset(this);
-	dev_info(&this->pdev->dev, "result: %s", this->result_info);
+	dev_info(&this->pdev->dev, "not started: %s", this->result_info);
 	UNLOCK(this);
 	return rc;
 }
@@ -1653,7 +1614,6 @@ static int synaptics_clearpad_command_fw_load_end(
 {
 	int rc;
 
-	LOCK(this);
 	if (!this->flash.image) {
 		dev_err(&this->pdev->dev,
 				"loading firmware is not started yet\n");
@@ -1669,8 +1629,6 @@ static int synaptics_clearpad_command_fw_load_end(
 	}
 	sysfs_remove_bin_file(&this->input->dev.kobj,
 			&synaptics_clearpad_fwdata);
-	UNLOCK(this);
-
 	return rc;
 }
 
@@ -1680,7 +1638,7 @@ static ssize_t synaptics_clearpad_state_show(struct device *dev,
 {
 	struct synaptics_clearpad *this = dev_get_drvdata(dev);
 
-	if (!strncmp(attr->attr.name, __stringify(fwinfo), PAGE_SIZE))
+	if (!strcmp(attr->attr.name, __stringify(fwinfo)))
 		snprintf(buf, PAGE_SIZE,
 			"%s, family 0x%02x, fw rev 0x%02x, task=%s, state=%s\n",
 			make_string(this->device_info.product_id,
@@ -1688,21 +1646,21 @@ static ssize_t synaptics_clearpad_state_show(struct device *dev,
 			this->device_info.customer_family,
 			this->device_info.firmware_revision,
 			task_name[this->task], state_name[this->state]);
-	else if (!strncmp(attr->attr.name, __stringify(fwfamily), PAGE_SIZE))
+	else if (!strcmp(attr->attr.name, __stringify(fwfamily)))
 		snprintf(buf, PAGE_SIZE,
 			"%x", this->device_info.customer_family);
-	else if (!strncmp(attr->attr.name, __stringify(fwrevision), PAGE_SIZE))
+	else if (!strcmp(attr->attr.name, __stringify(fwrevision)))
 		snprintf(buf, PAGE_SIZE,
 			"%x", this->device_info.firmware_revision);
-	else if (!strncmp(attr->attr.name, __stringify(fwtask), PAGE_SIZE))
+	else if (!strcmp(attr->attr.name, __stringify(fwtask)))
 		snprintf(buf, PAGE_SIZE,
 			"%s", task_name[this->task]);
-	else if (!strncmp(attr->attr.name, __stringify(fwstate), PAGE_SIZE))
+	else if (!strcmp(attr->attr.name, __stringify(fwstate)))
 		snprintf(buf, PAGE_SIZE,
 			"%s", state_name[this->state]);
 	else
 		snprintf(buf, PAGE_SIZE, "illegal sysfs file");
-	return strnlen(buf, PAGE_SIZE);
+	return strlen(buf);
 }
 
 static ssize_t synaptics_clearpad_fwflush_store(struct device *dev,
