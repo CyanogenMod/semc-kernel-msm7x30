@@ -390,6 +390,46 @@ config DEBUG_KMEMLEAK_TEST
 
 	  If unsure, say N.
 
+config SLQB_DEBUG
+	default y
+	bool "Enable SLQB debugging support"
+	depends on SLQB
+
+config SLQB_DEBUG_ON
+	default n
+	bool "SLQB debugging on by default"
+	depends on SLQB_DEBUG
+
+config SLQB_SYSFS
+	bool "Create SYSFS entries for slab caches"
+	default n
+	depends on SLQB
+
+config SLQB_STATS
+	bool "Enable SLQB performance statistics"
+	default n
+	depends on SLQB_SYSFS
+
+config SLQB_DEBUG
+	default y
+	bool "Enable SLQB debugging support"
+	depends on SLQB
+
+config SLQB_DEBUG_ON
+	default n
+	bool "SLQB debugging on by default"
+	depends on SLQB_DEBUG
+
+config SLQB_SYSFS
+	bool "Create SYSFS entries for slab caches"
+	default n
+	depends on SLQB
+
+config SLQB_STATS
+	bool "Enable SLQB performance statistics"
+	default n
+	depends on SLQB_SYSFS
+
 config DEBUG_PREEMPT
 	bool "Debug preemptible kernel"
 	depends on DEBUG_KERNEL && PREEMPT && TRACE_IRQFLAGS_SUPPORT

@@ -45,9 +45,6 @@
 #define PLLn_MODE(n)	(MSM_CLK_CTL_BASE + 0x300 + 28 * (n))
 #define PLLn_L_VAL(n)	(MSM_CLK_CTL_BASE + 0x304 + 28 * (n))
 
-#define dprintk(msg...) \
-	cpufreq_debug_printk(CPUFREQ_DEBUG_DRIVER, "cpufreq-msm", msg)
-
 enum {
 	ACPU_PLL_TCXO	= -1,
 	ACPU_PLL_0	= 0,
@@ -334,9 +331,9 @@ static int pc_pll_request(unsigned id, unsigned on)
 	on = !!on;
 
 	if (on)
-		dprintk("Enabling PLL %d\n", id);
+		pr_debug("Enabling PLL %d\n", id);
 	else
-		dprintk("Disabling PLL %d\n", id);
+		pr_debug("Disabling PLL %d\n", id);
 
 	if (id >= ACPU_PLL_END)
 		return -EINVAL;
@@ -369,9 +366,9 @@ static int pc_pll_request(unsigned id, unsigned on)
 	}
 
 	if (on)
-		dprintk("PLL enabled\n");
+		pr_debug("PLL enabled\n");
 	else
-		dprintk("PLL disabled\n");
+		pr_debug("PLL disabled\n");
 
 	return res;
 }
@@ -403,7 +400,7 @@ static int acpuclk_set_vdd_level(int vdd)
 
 	current_vdd = readl(A11S_VDD_SVS_PLEVEL_ADDR) & 0x07;
 
-	dprintk("Switching VDD from %u mV -> %d mV\n",
+	pr_debug("Switching VDD from %u mV -> %d mV\n",
 	       current_vdd, vdd);
 
 	writel((1 << 7) | (vdd << 3), A11S_VDD_SVS_PLEVEL_ADDR);
@@ -413,7 +410,7 @@ static int acpuclk_set_vdd_level(int vdd)
 		return -EIO;
 	}
 
-	dprintk("VDD switched\n");
+	pr_debug("VDD switched\n");
 
 	return 0;
 }
@@ -533,7 +530,7 @@ int acpuclk_set_rate(int cpu, unsigned long rate, enum setrate_reason reason)
 	reg_clkctl |= (100 << 16); /* set WT_ST_CNT */
 	writel(reg_clkctl, A11S_CLK_CNTL_ADDR);
 
-	dprintk("Switching from ACPU rate %u KHz -> %u KHz\n",
+	pr_debug("Switching from ACPU rate %u KHz -> %u KHz\n",
 		       strt_s->a11clk_khz, tgt_s->a11clk_khz);
 
 	while (cur_s != tgt_s) {
@@ -575,7 +572,7 @@ int acpuclk_set_rate(int cpu, unsigned long rate, enum setrate_reason reason)
 			cur_s = tgt_s;
 		}
 
-		dprintk("STEP khz = %u, pll = %d\n",
+		pr_debug("STEP khz = %u, pll = %d\n",
 				cur_s->a11clk_khz, cur_s->pll);
 
 		if (cur_s->pll != ACPU_PLL_TCXO
@@ -634,7 +631,7 @@ int acpuclk_set_rate(int cpu, unsigned long rate, enum setrate_reason reason)
 			pr_warning("Unable to drop ACPU vdd (%d)\n", res);
 	}
 
-	dprintk("ACPU speed change complete\n");
+	pr_debug("ACPU speed change complete\n");
 out:
 	if (reason == SETRATE_CPUFREQ)
 		mutex_unlock(&drv_state.lock);
