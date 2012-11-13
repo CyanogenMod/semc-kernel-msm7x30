@@ -341,11 +341,13 @@ LINUXINCLUDE    := -Iinclude \
 
 KBUILD_CPPFLAGS := -D__KERNEL__
 
-KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+KBUILD_CFLAGS   := -mno-unaligned-access -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+		   -Wno-unused-but-set-variable -Wno-uninitialized \
 		   -fno-strict-aliasing -fno-common \
-		   -Werror-implicit-function-declaration \
+		   -Wimplicit-function-declaration \
 		   -Wno-format-security \
 		   -fno-delete-null-pointer-checks
+
 KBUILD_AFLAGS   := -D__ASSEMBLY__
 
 # Read KERNELRELEASE from include/config/kernel.release (if it exists)
