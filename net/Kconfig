@@ -491,7 +491,7 @@ config MAC80211_DRIVER_API_TRACER
 
 endif # MAC80211_DEBUG_MENU
 
-source "net/compat-wireless/drivers/net/wireless/wl12xx/Kconfig"
+source "net/compat-wireless/drivers/wl12xx/Kconfig"
 
 endif
 
