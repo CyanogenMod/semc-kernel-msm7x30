@@ -1,5 +1,3 @@
-#ifeq ($(STERICSSON_WLAN_BUILT_IN),y)
-
 EXTRA_CFLAGS +=  \
         -DCOMPAT_BASE_TREE="\"wl12xx.git\"" \
         -DCOMPAT_BASE_TREE_VERSION="\"v2.6.39-1250-g40f5df0\"" \
@@ -16,11 +14,6 @@ obj-y += compat.o \
          compat-2.6.35.o \
          compat-2.6.33.o \
          compat_firmware_class.o
-
-#else
-#obj-m += compat.o
-#endif
-#compat-objs :=
 
 obj-$(CONFIG_COMPAT_FIRMWARE_CLASS) += compat_firmware_class.o
 
