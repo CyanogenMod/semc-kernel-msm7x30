@@ -45,9 +45,6 @@
 #define PLL2_N_VAL_ADDR (MSM_CLK_CTL_BASE + 0x344)
 #define PLL2_CONFIG_ADDR (MSM_CLK_CTL_BASE + 0x34C)
 
-#define dprintk(msg...) \
-cpufreq_debug_printk(CPUFREQ_DEBUG_DRIVER, "cpufreq-msm", msg)
-
 #define VREF_SEL 1 /* 0: 0.625V (50mV step), 1: 0.3125V (25mV step). */
 #define V_STEP (25 * (2 - VREF_SEL)) /* Minimum voltage step size. */
 #define VREG_DATA (VREG_CONFIG | (VREF_SEL << 5))
@@ -253,7 +250,7 @@ goto out;
 }
 }
 
-dprintk("Switching from ACPU rate %u KHz -> %u KHz\n",
+pr_info("Switching from ACPU rate %u KHz -> %u KHz\n",
 strt_s->acpu_clk_khz, tgt_s->acpu_clk_khz);
 
 /* Increase the AXI bus frequency if needed. This must be done before
@@ -281,7 +278,7 @@ acpuclk_config_pll2(tgt_s->pll_rate);
 
 /* Make sure target PLL is on. */
 if (strt_s->src != tgt_s->src && tgt_s->src >= 0) {
-dprintk("Enabling PLL %d\n", tgt_s->src);
+pr_info("Enabling PLL %d\n", tgt_s->src);
 local_src_enable(tgt_s->src);
 } else if (tgt_s->src == PLL_2 && strt_s->src == PLL_2)
 local_src_enable(PLL_2);
@@ -300,7 +297,7 @@ goto out;
 
 /* Turn off previous PLL if not used. */
 if (strt_s->src != tgt_s->src && strt_s->src >= 0) {
-dprintk("Disabling PLL %d\n", strt_s->src);
+pr_info("Disabling PLL %d\n", strt_s->src);
 local_src_disable(strt_s->src);
 }
 
@@ -332,7 +329,7 @@ pr_warning("ACPU VDD decrease to %d mV failed (%d)\n",
 tgt_s->vdd_mv, res);
 }
 
-dprintk("ACPU speed change complete\n");
+pr_info("ACPU speed change complete\n");
 out:
 if (reason == SETRATE_CPUFREQ)
 mutex_unlock(&drv_state.lock);

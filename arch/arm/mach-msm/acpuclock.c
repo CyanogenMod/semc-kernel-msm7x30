@@ -599,7 +599,7 @@ int acpuclk_set_rate(int cpu, unsigned long rate, enum setrate_reason reason)
 
 	/* Change the AXI bus frequency if we can. */
 	if (strt_s->axiclk_khz != tgt_s->axiclk_khz) {
-		res = ebi1_clk_set_min_rate(CLKVOTE_ACPUCLK,
+		res = clk_set_rate(CLKVOTE_ACPUCLK,
 						tgt_s->axiclk_khz * 1000);
 		if (res < 0)
 			pr_warning("Setting AXI min rate failed (%d)\n", res);
@@ -680,7 +680,7 @@ static void __init acpuclk_init(void)
 		if (pc_pll_request(speed->pll, 1))
 			pr_warning("Failed to vote for boot PLL\n");
 
-	res = ebi1_clk_set_min_rate(CLKVOTE_ACPUCLK, speed->axiclk_khz * 1000);
+	res = clk_set_rate(CLKVOTE_ACPUCLK, speed->axiclk_khz * 1000);
 	if (res < 0)
 		pr_warning("Setting AXI min rate failed (%d)\n", res);
 

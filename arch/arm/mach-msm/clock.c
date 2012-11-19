@@ -35,11 +35,17 @@ static LIST_HEAD(clocks);
  */
 static DECLARE_BITMAP(clock_map_enabled, MAX_NR_CLKS);
 static DEFINE_SPINLOCK(clock_map_lock);
-static struct notifier_block axi_freq_notifier_block;
 
 /*
  * Standard clock functions defined in include/linux/clk.h
  */
+
+int clk_set_min_rate(struct clk *clk, unsigned long rate)
+{
+         return clk->ops->set_min_rate(clk->id, rate);
+}
+EXPORT_SYMBOL(clk_set_min_rate);
+
 struct clk *clk_get(struct device *dev, const char *id)
 {
 	struct clk *clk;
@@ -139,12 +145,6 @@ long clk_round_rate(struct clk *clk, unsigned long rate)
 }
 EXPORT_SYMBOL(clk_round_rate);
 
-int clk_set_min_rate(struct clk *clk, unsigned long rate)
-{
-	return clk->ops->set_min_rate(clk->id, rate);
-}
-EXPORT_SYMBOL(clk_set_min_rate);
-
 int clk_set_max_rate(struct clk *clk, unsigned long rate)
 {
 	return clk->ops->set_max_rate(clk->id, rate);
@@ -170,64 +170,6 @@ int clk_set_flags(struct clk *clk, unsigned long flags)
 	return clk->ops->set_flags(clk->id, flags);
 }
 EXPORT_SYMBOL(clk_set_flags);
-
-/* EBI1 is the only shared clock that several clients want to vote on as of
- * this commit. If this changes in the future, then it might be better to
- * make clk_min_rate handle the voting or make ebi1_clk_set_min_rate more
- * generic to support different clocks.
- */
-static unsigned long ebi1_min_rate[CLKVOTE_MAX];
-static struct clk *ebi1_clk;
-static struct clk *pbus_clk;
-
-/* Rate is in Hz to be consistent with the other clk APIs. */
-int ebi1_clk_set_min_rate(enum clkvote_client client, unsigned long rate)
-{
-	static unsigned long last_set_val = -1;
-	unsigned long new_val;
-	unsigned long flags;
-	int ret = 0, i;
-
-	spin_lock_irqsave(&ebi1_vote_lock, flags);
-
-	ebi1_min_rate[client] = (rate == MSM_AXI_MAX_FREQ) ?
-				(clk_get_max_axi_khz() * 1000) : rate;
-
-	new_val = ebi1_min_rate[0];
-	for (i = 1; i < CLKVOTE_MAX; i++)
-		if (ebi1_min_rate[i] > new_val)
-			new_val = ebi1_min_rate[i];
-
-	/* This check is to save a proc_comm call. */
-	if (last_set_val != new_val) {
-		ret = clk_set_min_rate(ebi1_clk, new_val);
-		if (ret < 0) {
-			pr_err("Setting EBI1 min rate to %lu Hz failed!\n",
-				new_val);
-			pr_err("Last successful value was %lu Hz.\n",
-				last_set_val);
-		} else {
-			last_set_val = new_val;
-		}
-	}
-
-	spin_unlock_irqrestore(&ebi1_vote_lock, flags);
-
-	return ret;
-}
-
-static int axi_freq_notifier_handler(struct notifier_block *block,
-				unsigned long min_freq, void *v)
-{
-	/* convert min_freq from KHz to Hz, unless it's a magic value */
-	if (min_freq != MSM_AXI_MAX_FREQ)
-		min_freq *= 1000;
-
-	/* On 7x30, ebi1_clk votes are dropped during power collapse, but
-	 * pbus_clk votes are not. Use pbus_clk to implicitly request ebi1
-	 * and AXI rates. */
-	return clk_set_min_rate(pbus_clk, min_freq/2);
-}
 
 /*
  * Find out whether any clock is enabled that needs the TCXO clock.
@@ -298,13 +240,6 @@ void __init msm_clock_init(struct clk *clock_tbl, unsigned num_clocks)
 	}
 	mutex_unlock(&clocks_mutex);
 
-	ebi1_clk = clk_get(NULL, "ebi1_clk");
-	BUG_ON(IS_ERR(ebi1_clk));
-	pbus_clk = clk_get(NULL, "pbus_clk");
-	BUG_ON(IS_ERR(pbus_clk));
-
-	axi_freq_notifier_block.notifier_call = axi_freq_notifier_handler;
-	pm_qos_add_notifier(PM_QOS_SYSTEM_BUS_FREQ, &axi_freq_notifier_block);
 }
 
 /* The bootloader and/or AMSS may have left various clocks enabled.

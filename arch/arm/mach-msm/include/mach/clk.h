@@ -41,7 +41,6 @@ enum clk_reset_action {
 };
 
 struct clk;
-
 /* Rate is minimum clock rate in Hz */
 int clk_set_min_rate(struct clk *clk, unsigned long rate);
 
