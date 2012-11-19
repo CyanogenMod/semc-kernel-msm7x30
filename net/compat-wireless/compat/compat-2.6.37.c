@@ -346,7 +346,7 @@ EXPORT_SYMBOL(compat_led_classdev_unregister);
  *	use __vmalloc() instead.
  */
 
-/* Fix for WIFI
+
 void *vzalloc(unsigned long size)
 {
 	void *buf;
@@ -356,5 +356,5 @@ void *vzalloc(unsigned long size)
 	return buf;
 }
 EXPORT_SYMBOL(vzalloc);
-*/
+
 #endif
