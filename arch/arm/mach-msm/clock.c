@@ -26,7 +26,6 @@
 
 static DEFINE_MUTEX(clocks_mutex);
 static DEFINE_SPINLOCK(clocks_lock);
-static DEFINE_SPINLOCK(ebi1_vote_lock);
 static LIST_HEAD(clocks);
 
 /*
@@ -40,11 +39,6 @@ static DEFINE_SPINLOCK(clock_map_lock);
  * Standard clock functions defined in include/linux/clk.h
  */
 
-int clk_set_min_rate(struct clk *clk, unsigned long rate)
-{
-         return clk->ops->set_min_rate(clk->id, rate);
-}
-EXPORT_SYMBOL(clk_set_min_rate);
 
 struct clk *clk_get(struct device *dev, const char *id)
 {
@@ -145,6 +139,12 @@ long clk_round_rate(struct clk *clk, unsigned long rate)
 }
 EXPORT_SYMBOL(clk_round_rate);
 
+int clk_set_min_rate(struct clk *clk, unsigned long rate)
+{
+	return clk->ops->set_min_rate(clk->id, rate);
+}
+EXPORT_SYMBOL(clk_set_min_rate);
+
 int clk_set_max_rate(struct clk *clk, unsigned long rate)
 {
 	return clk->ops->set_max_rate(clk->id, rate);
@@ -171,59 +171,6 @@ int clk_set_flags(struct clk *clk, unsigned long flags)
 }
 EXPORT_SYMBOL(clk_set_flags);
 
-/*
- * Find out whether any clock is enabled that needs the TCXO clock.
- *
- * On exit, the buffer 'reason' holds a bitmap of ids of all enabled
- * clocks found that require TCXO.
- *
- * reason: buffer to hold the bitmap; must be compatible with
- *         linux/bitmap.h
- * nbits: number of bits that the buffer can hold; 0 is ok
- *
- * Return value:
- *      0: does not require the TCXO clock
- *      1: requires the TCXO clock
- */
-int msm_clock_require_tcxo(unsigned long *reason, int nbits)
-{
-	unsigned long flags;
-	int ret;
-
-	spin_lock_irqsave(&clock_map_lock, flags);
-	ret = !bitmap_empty(clock_map_enabled, MAX_NR_CLKS);
-	if (nbits > 0)
-		bitmap_copy(reason, clock_map_enabled, min(nbits, MAX_NR_CLKS));
-	spin_unlock_irqrestore(&clock_map_lock, flags);
-
-	return ret;
-}
-
-/*
- * Find the clock matching the given id and copy its name to the
- * provided buffer.
- *
- * Return value:
- * -ENODEV: there is no clock matching the given id
- *       0: success
- */
-int msm_clock_get_name(uint32_t id, char *name, uint32_t size)
-{
-	struct clk *c_clk;
-	int ret = -ENODEV;
-
-	mutex_lock(&clocks_mutex);
-	list_for_each_entry(c_clk, &clocks, list) {
-		if (id == c_clk->id) {
-			strlcpy(name, c_clk->name, size);
-			ret = 0;
-			break;
-		}
-	}
-	mutex_unlock(&clocks_mutex);
-
-	return ret;
-}
 
 void __init msm_clock_init(struct clk *clock_tbl, unsigned num_clocks)
 {
@@ -266,8 +213,6 @@ static int __init clock_late_init(void)
 		}
 	}
 	mutex_unlock(&clocks_mutex);
-	pr_info("clock_late_init() disabled %d unused clocks\n", count);
 	return 0;
 }
-
 late_initcall(clock_late_init);
