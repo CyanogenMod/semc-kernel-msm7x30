@@ -400,10 +400,15 @@ static inline int scsi_host_is_busy(struct Scsi_Host *shost)
 static void scsi_run_queue(struct request_queue *q)
 {
 	struct scsi_device *sdev = q->queuedata;
-	struct Scsi_Host *shost = sdev->host;
+	struct Scsi_Host *shost;
 	LIST_HEAD(starved_list);
 	unsigned long flags;
 
+	/* if the device is dead, sdev will be NULL, so no queue to run */
+	if (!sdev)
+		return;
+
+	shost = sdev->host;
 	if (scsi_target(sdev)->single_lun)
 		scsi_single_lun_run(sdev);
 
@@ -773,8 +778,14 @@ void scsi_io_completion(struct scsi_cmnd *cmd, unsigned int good_bytes)
 	 * we already took a copy of the original into rq->errors which
 	 * is what gets returned to the user
 	 */
-	if (sense_valid && sshdr.sense_key == RECOVERED_ERROR) {
-		if (!(req->cmd_flags & REQ_QUIET))
+	if (sense_valid && (sshdr.sense_key == RECOVERED_ERROR)) {
+		/* if ATA PASS-THROUGH INFORMATION AVAILABLE skip
+		 * print since caller wants ATA registers. Only occurs on
+		 * SCSI ATA PASS_THROUGH commands when CK_COND=1
+		 */
+		if ((sshdr.asc == 0x0) && (sshdr.ascq == 0x1d))
+			;
+		else if (!(req->cmd_flags & REQ_QUIET))
 			scsi_print_sense("", cmd);
 		result = 0;
 		/* BLOCK_PC may have set error */
@@ -1359,9 +1370,9 @@ static int scsi_lld_busy(struct request_queue *q)
 static void scsi_kill_request(struct request *req, struct request_queue *q)
 {
 	struct scsi_cmnd *cmd = req->special;
-	struct scsi_device *sdev = cmd->device;
-	struct scsi_target *starget = scsi_target(sdev);
-	struct Scsi_Host *shost = sdev->host;
+	struct scsi_device *sdev;
+	struct scsi_target *starget;
+	struct Scsi_Host *shost;
 
 	blk_start_request(req);
 
@@ -1371,6 +1382,11 @@ static void scsi_kill_request(struct request *req, struct request_queue *q)
 		BUG();
 	}
 
+	scmd_printk(KERN_INFO, cmd, "killing request\n");
+
+	sdev = cmd->device;
+	starget = scsi_target(sdev);
+	shost = sdev->host;
 	scsi_init_cmd_errh(cmd);
 	cmd->result = DID_NO_CONNECT << 16;
 	atomic_inc(&cmd->device->iorequest_cnt);
@@ -1454,7 +1470,6 @@ static void scsi_request_fn(struct request_queue *q)
 	struct request *req;
 
 	if (!sdev) {
-		printk("scsi: killing requests for dead queue\n");
 		while ((req = blk_peek_request(q)) != NULL)
 			scsi_kill_request(req, q);
 		return;
@@ -1630,9 +1645,8 @@ struct request_queue *__scsi_alloc_queue(struct Scsi_Host *shost,
 
 	blk_queue_max_segment_size(q, dma_get_max_seg_size(dev));
 
-	/* New queue, no concurrency on queue_flags */
 	if (!shost->use_clustering)
-		queue_flag_clear_unlocked(QUEUE_FLAG_CLUSTER, q);
+		q->limits.cluster = 0;
 
 	/*
 	 * set a reasonable default alignment on word boundaries: the
@@ -1662,6 +1676,15 @@ struct request_queue *scsi_alloc_queue(struct scsi_device *sdev)
 
 void scsi_free_queue(struct request_queue *q)
 {
+	unsigned long flags;
+
+	WARN_ON(q->queuedata);
+
+	/* cause scsi_request_fn() to kill all non-finished requests */
+	spin_lock_irqsave(q->queue_lock, flags);
+	q->request_fn(q);
+	spin_unlock_irqrestore(q->queue_lock, flags);
+
 	blk_cleanup_queue(q);
 }
 
@@ -2426,7 +2449,8 @@ scsi_internal_device_unblock(struct scsi_device *sdev)
 		sdev->sdev_state = SDEV_RUNNING;
 	else if (sdev->sdev_state == SDEV_CREATED_BLOCK)
 		sdev->sdev_state = SDEV_CREATED;
-	else
+	else if (sdev->sdev_state != SDEV_CANCEL &&
+		 sdev->sdev_state != SDEV_OFFLINE)
 		return -EINVAL;
 
 	spin_lock_irqsave(q->queue_lock, flags);
