@@ -341,8 +341,8 @@ LINUXINCLUDE    := -Iinclude \
 
 KBUILD_CPPFLAGS := -D__KERNEL__
 
-KBUILD_CFLAGS   := -mno-unaligned-access -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
-		   -Wno-uninitialized -Wno-unused-but-set-variable \
+KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+		   -Wno-unused-but-set-variable -Wno-uninitialized \
 		   -fno-strict-aliasing -fno-common \
 		   -Wimplicit-function-declaration \
 		   -Wno-format-security \

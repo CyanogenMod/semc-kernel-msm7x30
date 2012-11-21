@@ -319,11 +319,7 @@ static inline void get_page(struct page *page)
 
 static inline struct page *virt_to_head_page(const void *x)
 {
-#ifdef virt_to_page_fast
-	struct page *page = virt_to_page_fast(x);
-#else
 	struct page *page = virt_to_page(x);
-#endif
 	return compound_head(page);
 }
 

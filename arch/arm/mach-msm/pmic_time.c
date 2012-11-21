@@ -26,7 +26,7 @@ static ssize_t pmic_time_show(struct device *dev,
 
 static DEVICE_ATTR(pmic_time, S_IRUGO, pmic_time_show, NULL);
 
-static int pmic_time_probe(struct platform_device *pdev)
+static int __init pmic_time_probe(struct platform_device *pdev)
 {
 	int rc;
 

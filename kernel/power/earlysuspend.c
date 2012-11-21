@@ -110,9 +110,9 @@ abort:
 
 static void early_sys_sync(struct work_struct *work)
 {
-	wake_lock(&sys_sync_wake_lock);
-	sys_sync();
-	wake_unlock(&sys_sync_wake_lock);
+    wake_lock(&sys_sync_wake_lock);
+    sys_sync();
+    wake_unlock(&sys_sync_wake_lock);
 }
 
 static void late_resume(struct work_struct *work)

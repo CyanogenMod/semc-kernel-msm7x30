@@ -1053,9 +1053,6 @@ config SLUB
 	   and has enhanced diagnostics. SLUB is the default choice for
 	   a slab allocator.
 
-config SLQB
-	bool "SLQB (Qeued allocator)"
-
 config SLOB
 	depends on EMBEDDED
 	bool "SLOB (Simple Allocator)"
@@ -1114,7 +1111,7 @@ config HAVE_GENERIC_DMA_COHERENT
 config SLABINFO
 	bool
 	depends on PROC_FS
-	depends on SLAB || SLUB_DEBUG || SLQB
+	depends on SLAB || SLUB_DEBUG
 	default y
 
 config RT_MUTEXES

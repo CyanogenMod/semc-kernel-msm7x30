@@ -571,21 +571,20 @@ static int __init wakelocks_init(void)
 		ret = -ENOMEM;
 		goto err_suspend_work_queue;
 	}
-	sys_sync_work_queue = create_singlethread_workqueue("sys_sync");
-	if (sys_sync_work_queue == NULL) {
+    sys_sync_work_queue = create_singlethread_workqueue("sys_sync");
+    if (sys_sync_work_queue == NULL) {
 		ret = -ENOMEM;
 		goto err_sys_sync_work_queue;
-	}
+    }
 
 #ifdef CONFIG_WAKELOCK_STAT
 	proc_create("wakelocks", S_IRUGO, NULL, &wakelock_stats_fops);
 #endif
 
 	return 0;
-
 err_sys_sync_work_queue:
-	pr_err("wakelocks_init: create sys_sync work queue failed");
-	destroy_workqueue(suspend_work_queue);
+    pr_err("wakelocks_init: create sys_sync work queue failed");
+    destroy_workqueue(suspend_work_queue);
 err_suspend_work_queue:
 	platform_driver_unregister(&power_driver);
 err_platform_driver_register:
